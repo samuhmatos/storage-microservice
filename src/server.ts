@@ -5,21 +5,24 @@ import path from "path";
 import fs from "fs";
 import sharp from "sharp";
 import { v4 as uuidv4 } from "uuid";
+import cors from "cors";
 
 const app = express();
 
 const PORT = Number(process.env.PORT) || 3000;
-const baseUrl = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
+const baseUrl = process.env.APP_BASE_URL! + PORT;
 
-console.log(process.env);
 const storage = multer.memoryStorage();
 
 const upload = multer({ storage });
 
-app.use((req, res, next) => {
-  // console.log(req);
-  next();
-});
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+  })
+);
 
 app.post("/upload", upload.single("file"), async (req, res) => {
   if (!req.file) {
@@ -31,21 +34,44 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     fs.mkdirSync(uploadPath);
   }
 
-  const filename =
-    uuidv4() + "-" + Date.now() + path.extname(req.file.originalname);
+  var file = req.file;
 
-  const filePath = path.join(uploadPath, filename);
+  const filename =
+    uuidv4() + "-" + Date.now() + path.extname(file.originalname);
+
+  var filePath = path.join(uploadPath, filename);
 
   try {
-    await sharp(req.file.buffer).jpeg({ quality: 100 }).toFile(filePath);
+    const fileType = file.mimetype;
 
-    res.json({
-      message: "Upload e compressão bem-sucedidos",
+    var successResponse = {
+      message: "Upload bem-sucedido",
       filename,
       filePath: baseUrl + `/file/` + filename,
-    });
+    };
+
+    if (fileType.startsWith("image/")) {
+      await sharp(file.buffer).toFile(filePath);
+
+      return res.json(successResponse);
+    } else if (fileType === "application/pdf") {
+      let bodyFilename = req.body.filename as string | undefined;
+
+      if (bodyFilename) {
+        filePath = path.join(uploadPath, bodyFilename);
+        successResponse.filePath = baseUrl + `/file/` + bodyFilename;
+      }
+
+      await fs.promises.writeFile(filePath, req.file.buffer);
+
+      return res.json(successResponse);
+    } else {
+      return res.status(400).json({ message: "Tipo de arquivo não suportado" });
+    }
   } catch (error) {
-    res.status(500).json({ message: "Erro ao processar a imagem", error });
+    return res
+      .status(500)
+      .json({ message: "Erro ao processar o arquivo", error });
   }
 });
 
@@ -77,6 +103,47 @@ app.delete("/file/:filename", (req, res) => {
   });
 });
 
+app.post("/file/deleteMany", async (req, res) => {
+  const fileList = req.body.fileList as string[] | undefined;
+
+  if (!fileList || !Array.isArray(fileList)) {
+    return res.status(403).json({
+      message: "Para apagar um ou mais arquivos, envie uma lista de arquivos",
+    });
+  }
+
+  let errors: { file: string; message: string; error?: any }[] = [];
+
+  await Promise.all(
+    fileList.map(async (_file) => {
+      const file = _file.replace(`${baseUrl}/file/`, "");
+      const filePath = path.join(__dirname, "uploads", file);
+
+      const exist = await fs.existsSync(filePath);
+
+      if (exist) {
+        try {
+          await fs.rmSync(filePath, { force: true });
+        } catch (err) {
+          return errors.push({
+            file,
+            message: "Erro ao apagar o arquivo",
+            error: err,
+          });
+        }
+      } else {
+        return errors.push({ file, message: "Arquivo não encontrado" });
+      }
+    })
+  );
+
+  if (errors.length > 0) {
+    res.status(500).json({ message: "Erros ao apagar arquivos", errors });
+  } else {
+    res.json({ message: "Arquivos apagados com sucesso" });
+  }
+});
+
 app.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
+  console.log(`Servidor rodando em ${baseUrl}`);
 });
