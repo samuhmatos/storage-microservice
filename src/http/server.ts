@@ -19,11 +19,21 @@ const BASE_PATH = path.join(process.cwd(), "assets");
 export const UPLOAD_PATH = path.join(BASE_PATH, "uploads");
 export const UPLOAD_TMP_PATH = path.join(BASE_PATH, "tmp");
 
+const allowedOrigins = [process.env.ORIGIN_URL, "http://localhost:3000"];
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(
   cors({
-    origin: process.env.ORIGIN_URL,
+    origin(requestOrigin, callback) {
+      console.log(requestOrigin);
+
+      if (!requestOrigin || allowedOrigins.indexOf(requestOrigin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
   })
 );
 
