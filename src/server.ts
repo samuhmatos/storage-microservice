@@ -9,18 +9,20 @@ import cors from "cors";
 
 const app = express();
 
-const PORT = Number(process.env.PORT) || 3000;
-const baseUrl = process.env.APP_BASE_URL! + PORT;
+const PORT = Number(process.env.PORT);
+const baseUrl = process.env.APP_BASE_URL!;
 
 const storage = multer.memoryStorage();
 
 const upload = multer({ storage });
 
+const uploadPath = path.join(process.cwd(), "assets", "uploads");
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: process.env.ORIGIN_URL,
   })
 );
 
@@ -29,7 +31,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     return res.status(400).json({ message: "Falha no upload do arquivo" });
   }
 
-  const uploadPath = path.join(__dirname, "uploads");
+  // const uploadPath = path.join(__dirname, "uploads");
   if (!fs.existsSync(uploadPath)) {
     fs.mkdirSync(uploadPath);
   }
@@ -77,7 +79,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
 app.get("/file/:filename", (req, res) => {
   const filename = req.params.filename;
-  const filePath = path.join(__dirname, "uploads", filename);
+  const filePath = path.join(uploadPath, filename);
 
   fs.access(filePath, fs.constants.F_OK, (err) => {
     if (err) {
@@ -91,7 +93,7 @@ app.get("/file/:filename", (req, res) => {
 app.delete("/file/:filename", (req, res) => {
   const filename = req.params.filename;
 
-  const filePath = path.join(__dirname, "uploads", filename);
+  const filePath = path.join(uploadPath, filename);
 
   fs.access(filePath, fs.constants.F_OK, (err) => {
     if (err) {
@@ -117,7 +119,7 @@ app.post("/file/deleteMany", async (req, res) => {
   await Promise.all(
     fileList.map(async (_file) => {
       const file = _file.replace(`${baseUrl}/file/`, "");
-      const filePath = path.join(__dirname, "uploads", file);
+      const filePath = path.join(uploadPath, file);
 
       const exist = await fs.existsSync(filePath);
 
