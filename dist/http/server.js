@@ -19,10 +19,19 @@ const upload = (0, multer_1.default)({ storage });
 const BASE_PATH = path_1.default.join(process.cwd(), "assets");
 exports.UPLOAD_PATH = path_1.default.join(BASE_PATH, "uploads");
 exports.UPLOAD_TMP_PATH = path_1.default.join(BASE_PATH, "tmp");
+const allowedOrigins = [process.env.ORIGIN_URL, "http://localhost:3000"];
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
 app.use((0, cors_1.default)({
-    origin: process.env.ORIGIN_URL,
+    origin(requestOrigin, callback) {
+        console.log(requestOrigin);
+        if (!requestOrigin || allowedOrigins.indexOf(requestOrigin) !== -1) {
+            callback(null, true);
+        }
+        else {
+            callback(new Error("Not allowed by CORS"));
+        }
+    },
 }));
 app.post("/upload", upload.single("file"), async (req, res) => {
     let body = req.body;
