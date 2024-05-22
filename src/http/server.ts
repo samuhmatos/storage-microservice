@@ -3,20 +3,21 @@ import express from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import sharp from "sharp";
-import { v4 as uuidv4 } from "uuid";
 import cors from "cors";
+import { uploadFile } from "../useCases/useUploadFile";
 
 const app = express();
 
 const PORT = Number(process.env.PORT);
-const baseUrl = process.env.APP_BASE_URL!;
+export const BASE_URL = process.env.APP_BASE_URL!;
 
 const storage = multer.memoryStorage();
 
 const upload = multer({ storage });
 
-const uploadPath = path.join(process.cwd(), "assets", "uploads");
+const BASE_PATH = path.join(process.cwd(), "assets");
+export const UPLOAD_PATH = path.join(BASE_PATH, "uploads");
+export const UPLOAD_TMP_PATH = path.join(BASE_PATH, "tmp");
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -27,73 +28,70 @@ app.use(
 );
 
 app.post("/upload", upload.single("file"), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: "Falha no upload do arquivo" });
+  let body = req.body;
+
+  let tmp = Boolean(body.tmp) || false;
+  let reset = Boolean(body.reset) || false;
+  let filename = body.filename as string | undefined;
+
+  let file = req.file;
+
+  if (!file) {
+    return res.status(400).json({
+      message: "Falha no upload do arquivo",
+    });
   }
 
-  // const uploadPath = path.join(__dirname, "uploads");
-  if (!fs.existsSync(uploadPath)) {
-    fs.mkdirSync(uploadPath);
-  }
-
-  var file = req.file;
-
-  const filename =
-    uuidv4() + "-" + Date.now() + path.extname(file.originalname);
-
-  var filePath = path.join(uploadPath, filename);
-
-  try {
-    const fileType = file.mimetype;
-
-    var successResponse = {
-      message: "Upload bem-sucedido",
+  const upload = await uploadFile(
+    {
+      file,
       filename,
-      filePath: baseUrl + `/file/` + filename,
-    };
+    },
+    tmp
+  );
 
-    if (fileType.startsWith("image/")) {
-      await sharp(file.buffer).toFile(filePath);
+  if (reset) {
+    filename = filename || file.originalname;
+    let tmpPath = path.join(UPLOAD_TMP_PATH, filename);
 
-      return res.json(successResponse);
-    } else if (fileType === "application/pdf") {
-      let bodyFilename = req.body.filename as string | undefined;
-
-      if (bodyFilename) {
-        filePath = path.join(uploadPath, bodyFilename);
-        successResponse.filePath = baseUrl + `/file/` + bodyFilename;
-      }
-
-      await fs.promises.writeFile(filePath, req.file.buffer);
-
-      return res.json(successResponse);
-    } else {
-      return res.status(400).json({ message: "Tipo de arquivo não suportado" });
+    if (fs.existsSync(tmpPath)) {
+      fs.rmSync(tmpPath, { recursive: true, force: true });
     }
-  } catch (error) {
-    return res
-      .status(500)
-      .json({ message: "Erro ao processar o arquivo", error });
+  }
+
+  if (upload.error) {
+    let { code, ...rest } = upload.error;
+    return res.status(code).json(rest);
+  }
+
+  if (upload.success) {
+    return res.json(upload.success);
   }
 });
 
 app.get("/file/:filename", (req, res) => {
   const filename = req.params.filename;
-  const filePath = path.join(uploadPath, filename);
+  const filePath = path.join(UPLOAD_PATH, filename);
+  const tmpFilePath = path.join(UPLOAD_TMP_PATH, filename);
 
-  fs.access(filePath, fs.constants.F_OK, (err) => {
-    if (err) {
-      res.status(404).json({ message: "Arquivo não encontrado" });
-    } else {
-      res.sendFile(filePath);
-    }
-  });
+  const tmpQuery = Boolean(req.query.tmp) || false;
+
+  let finalPath = tmpQuery ? tmpFilePath : filePath;
+
+  const exist = fs.existsSync(finalPath);
+
+  if (!exist) {
+    res.status(404).json({ message: "Arquivo não encontrado" });
+    return;
+  }
+
+  return res.sendFile(finalPath);
 });
 
 app.delete("/file/:filename", (req, res) => {
   const filename = req.params.filename;
 
-  const filePath = path.join(uploadPath, filename);
+  const filePath = path.join(UPLOAD_PATH, filename);
 
   fs.access(filePath, fs.constants.F_OK, (err) => {
     if (err) {
@@ -118,8 +116,8 @@ app.post("/file/deleteMany", async (req, res) => {
 
   await Promise.all(
     fileList.map(async (_file) => {
-      const file = _file.replace(`${baseUrl}/file/`, "");
-      const filePath = path.join(uploadPath, file);
+      const file = _file.replace(`${BASE_URL}/file/`, "");
+      const filePath = path.join(UPLOAD_PATH, file);
 
       const exist = await fs.existsSync(filePath);
 
@@ -147,5 +145,5 @@ app.post("/file/deleteMany", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Servidor rodando em ${baseUrl}`);
+  console.log(`Servidor rodando em ${BASE_URL}`);
 });

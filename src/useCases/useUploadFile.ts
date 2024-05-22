@@ -1,0 +1,89 @@
+import { v4 as uuidv4 } from "uuid";
+import fs from "fs";
+import { BASE_URL, UPLOAD_PATH, UPLOAD_TMP_PATH } from "../http/server";
+import path from "path";
+import sharp from "sharp";
+
+interface Payload {
+  file: Express.Multer.File;
+  filename?: string;
+}
+
+function genPath(filename: string, tmp: boolean) {
+  let path = BASE_URL + `/file/` + filename;
+
+  if (tmp) path += `?tmp=true`;
+
+  return path;
+}
+
+export async function uploadFile(
+  { file, filename }: Payload,
+  tmp: boolean
+): Promise<{
+  error?: {
+    code: number;
+    message?: string;
+    error?: unknown;
+  };
+  success?: {
+    message: string;
+    filename: string;
+    filePath: string;
+  };
+}> {
+  var uploadPath = tmp ? UPLOAD_TMP_PATH : UPLOAD_PATH;
+
+  if (!fs.existsSync(uploadPath)) {
+    fs.mkdirSync(uploadPath);
+  }
+
+  const _filename =
+    uuidv4() + "-" + Date.now() + path.extname(file.originalname);
+
+  var filePath = path.join(uploadPath, _filename);
+
+  try {
+    const fileType = file.mimetype;
+
+    var successResponse = {
+      message: "Upload bem-sucedido",
+      filename: _filename,
+      filePath: genPath(_filename, tmp),
+    };
+
+    if (fileType.startsWith("image/")) {
+      await sharp(file.buffer).toFile(filePath);
+
+      return {
+        success: successResponse,
+      };
+    } else if (fileType === "application/pdf") {
+      if (filename) {
+        filePath = path.join(uploadPath, filename);
+        successResponse.filePath = genPath(filename, tmp);
+      }
+
+      await fs.promises.writeFile(filePath, file.buffer);
+
+      return {
+        success: successResponse,
+      };
+    } else {
+      return {
+        error: {
+          code: 400,
+          message: "Tipo de arquivo não suportado",
+        },
+      };
+    }
+  } catch (error) {
+    return {
+      error: {
+        code: 500,
+        message: "Erro ao processar o arquivo",
+        error,
+      },
+    };
+  }
+}
