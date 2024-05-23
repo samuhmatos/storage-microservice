@@ -4,7 +4,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.uploadFile = void 0;
-const uuid_1 = require("uuid");
 const fs_1 = __importDefault(require("fs"));
 const server_1 = require("../http/server");
 const path_1 = __importDefault(require("path"));
@@ -20,14 +19,13 @@ async function uploadFile({ file, filename }, tmp) {
     if (!fs_1.default.existsSync(uploadPath)) {
         fs_1.default.mkdirSync(uploadPath);
     }
-    const _filename = (0, uuid_1.v4)() + "-" + Date.now() + path_1.default.extname(file.originalname);
-    var filePath = path_1.default.join(uploadPath, _filename);
+    var filePath = path_1.default.join(uploadPath, filename);
     try {
         const fileType = file.mimetype;
         var successResponse = {
             message: "Upload bem-sucedido",
-            filename: _filename,
-            filePath: genPath(_filename, tmp),
+            filename,
+            filePath: genPath(filename, tmp),
         };
         if (fileType.startsWith("image/")) {
             await (0, sharp_1.default)(file.buffer).toFile(filePath);
@@ -36,10 +34,6 @@ async function uploadFile({ file, filename }, tmp) {
             };
         }
         else if (fileType === "application/pdf") {
-            if (filename) {
-                filePath = path_1.default.join(uploadPath, filename);
-                successResponse.filePath = genPath(filename, tmp);
-            }
             await fs_1.default.promises.writeFile(filePath, file.buffer);
             return {
                 success: successResponse,

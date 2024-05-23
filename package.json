@@ -15,7 +15,7 @@
     "clean": "rimraf dist",
     "dev": "tsx watch src/http/server.ts",
     "build": "npm run clean && tsc",
-    "start": "node dist/http/server.js"
+    "start": "NODE_ENV=production node dist/http/server.js"
   },
   "devDependencies": {
     "@types/cors": "^2",

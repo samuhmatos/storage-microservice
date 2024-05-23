@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from "uuid";
 import fs from "fs";
 import { BASE_URL, UPLOAD_PATH, UPLOAD_TMP_PATH } from "../http/server";
 import path from "path";
@@ -6,7 +5,7 @@ import sharp from "sharp";
 
 interface Payload {
   file: Express.Multer.File;
-  filename?: string;
+  filename: string;
 }
 
 function genPath(filename: string, tmp: boolean) {
@@ -38,18 +37,15 @@ export async function uploadFile(
     fs.mkdirSync(uploadPath);
   }
 
-  const _filename =
-    uuidv4() + "-" + Date.now() + path.extname(file.originalname);
-
-  var filePath = path.join(uploadPath, _filename);
+  var filePath = path.join(uploadPath, filename);
 
   try {
     const fileType = file.mimetype;
 
     var successResponse = {
       message: "Upload bem-sucedido",
-      filename: _filename,
-      filePath: genPath(_filename, tmp),
+      filename,
+      filePath: genPath(filename, tmp),
     };
 
     if (fileType.startsWith("image/")) {
@@ -59,11 +55,6 @@ export async function uploadFile(
         success: successResponse,
       };
     } else if (fileType === "application/pdf") {
-      if (filename) {
-        filePath = path.join(uploadPath, filename);
-        successResponse.filePath = genPath(filename, tmp);
-      }
-
       await fs.promises.writeFile(filePath, file.buffer);
 
       return {

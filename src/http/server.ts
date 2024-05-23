@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import cors from "cors";
 import { uploadFile } from "../useCases/useUploadFile";
+import { v4 as uuidv4 } from "uuid";
 
 const app = express();
 
@@ -19,30 +20,35 @@ const BASE_PATH = path.join(process.cwd(), "assets");
 export const UPLOAD_PATH = path.join(BASE_PATH, "uploads");
 export const UPLOAD_TMP_PATH = path.join(BASE_PATH, "tmp");
 
-const allowedOrigins = [process.env.ORIGIN_URL, "http://localhost:3000"];
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(
-  cors({
-    origin(requestOrigin, callback) {
-      console.log(requestOrigin);
 
-      if (!requestOrigin || allowedOrigins.indexOf(requestOrigin) !== -1) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-  })
-);
+if (process.env.NODE_ENV === "production") {
+  const allowedOrigins = [process.env.ORIGIN_URL, "http://localhost:3000"];
+
+  app.use(
+    cors({
+      origin(requestOrigin, callback) {
+        console.log("origin", requestOrigin);
+
+        if (!requestOrigin || allowedOrigins.indexOf(requestOrigin) !== -1) {
+          callback(null, true);
+        } else {
+          callback(new Error("Not allowed by CORS"));
+        }
+      },
+    })
+  );
+}
+
+app.use(express.static(path.join(process.cwd(), "assets")));
 
 app.post("/upload", upload.single("file"), async (req, res) => {
   let body = req.body;
 
-  let tmp = Boolean(body.tmp) || false;
-  let reset = Boolean(body.reset) || false;
-  let filename = body.filename as string | undefined;
+  let tmp = body.tmp == "true" ? true : false;
+  let reset = body.reset == "true" ? true : false;
+  let _filename = body.filename as string | undefined;
 
   let file = req.file;
 
@@ -51,6 +57,9 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       message: "Falha no upload do arquivo",
     });
   }
+
+  var filename =
+    _filename || uuidv4() + "-" + Date.now() + path.extname(file.originalname);
 
   const upload = await uploadFile(
     {
@@ -61,8 +70,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
   );
 
   if (reset) {
-    filename = filename || file.originalname;
-    let tmpPath = path.join(UPLOAD_TMP_PATH, filename);
+    let tmpPath = path.join(UPLOAD_TMP_PATH, file.originalname);
 
     if (fs.existsSync(tmpPath)) {
       fs.rmSync(tmpPath, { recursive: true, force: true });
@@ -126,23 +134,25 @@ app.post("/file/deleteMany", async (req, res) => {
 
   await Promise.all(
     fileList.map(async (_file) => {
-      const file = _file.replace(`${BASE_URL}/file/`, "");
-      const filePath = path.join(UPLOAD_PATH, file);
+      if (_file) {
+        const file = _file.replace(`${BASE_URL}/file/`, "");
+        const filePath = path.join(UPLOAD_PATH, file);
 
-      const exist = await fs.existsSync(filePath);
+        const exist = await fs.existsSync(filePath);
 
-      if (exist) {
-        try {
-          await fs.rmSync(filePath, { force: true });
-        } catch (err) {
-          return errors.push({
-            file,
-            message: "Erro ao apagar o arquivo",
-            error: err,
-          });
+        if (exist) {
+          try {
+            await fs.rmSync(filePath, { force: true });
+          } catch (err) {
+            return errors.push({
+              file,
+              message: "Erro ao apagar o arquivo",
+              error: err,
+            });
+          }
+        } else {
+          return errors.push({ file, message: "Arquivo não encontrado" });
         }
-      } else {
-        return errors.push({ file, message: "Arquivo não encontrado" });
       }
     })
   );
@@ -152,6 +162,12 @@ app.post("/file/deleteMany", async (req, res) => {
   } else {
     res.json({ message: "Arquivos apagados com sucesso" });
   }
+});
+
+app.delete("/file/cleanTemp", async (req, res) => {
+  fs.rmdirSync(UPLOAD_TMP_PATH, { recursive: true });
+
+  res.json({ message: "Arquivos temporários apagados com sucesso" });
 });
 
 app.listen(PORT, () => {
