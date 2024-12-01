@@ -49,7 +49,7 @@ export async function uploadFile(
     };
 
     if (fileType.startsWith("image/")) {
-      await sharp(file.buffer).toFile(filePath);
+      await sharp(file.buffer).rotate().toFile(filePath);
 
       return {
         success: successResponse,

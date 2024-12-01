@@ -27,6 +27,7 @@ if (process.env.NODE_ENV === "production") {
     app.use((0, cors_1.default)({
         origin(requestOrigin, callback) {
             console.log("origin", requestOrigin);
+            console.log(allowedOrigins);
             if (!requestOrigin || allowedOrigins.indexOf(requestOrigin) !== -1) {
                 callback(null, true);
             }

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadFile = void 0;
+exports.uploadFile = uploadFile;
 const fs_1 = __importDefault(require("fs"));
 const server_1 = require("../http/server");
 const path_1 = __importDefault(require("path"));
@@ -28,7 +28,7 @@ async function uploadFile({ file, filename }, tmp) {
             filePath: genPath(filename, tmp),
         };
         if (fileType.startsWith("image/")) {
-            await (0, sharp_1.default)(file.buffer).toFile(filePath);
+            await (0, sharp_1.default)(file.buffer).rotate().toFile(filePath);
             return {
                 success: successResponse,
             };
@@ -58,4 +58,3 @@ async function uploadFile({ file, filename }, tmp) {
         };
     }
 }
-exports.uploadFile = uploadFile;

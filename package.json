@@ -1,6 +1,5 @@
 {
   "name": "storage-service",
-  "packageManager": "yarn@4.2.2",
   "main": "dist/http/server.js",
   "dependencies": {
     "cors": "^2.8.5",
@@ -15,7 +14,8 @@
     "clean": "rimraf dist",
     "dev": "tsx watch src/http/server.ts",
     "build": "npm run clean && tsc",
-    "start": "NODE_ENV=production node dist/http/server.js"
+    "start": "node dist/http/server.js",
+    "build:start": "yarn build && yarn start"
   },
   "devDependencies": {
     "@types/cors": "^2",
