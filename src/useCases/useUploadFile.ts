@@ -29,6 +29,8 @@ export async function uploadFile(
     message: string;
     filename: string;
     filePath: string;
+    width?: number;
+    height?: number;
   };
 }> {
   var uploadPath = tmp ? UPLOAD_TMP_PATH : UPLOAD_PATH;
@@ -49,10 +51,14 @@ export async function uploadFile(
     };
 
     if (fileType.startsWith("image/")) {
-      await sharp(file.buffer).rotate().toFile(filePath);
+      const metadata = await sharp(file.buffer).rotate().toFile(filePath);
 
       return {
-        success: successResponse,
+        success: {
+          ...successResponse,
+          width: metadata.width,
+          height: metadata.height,
+        },
       };
     } else if (fileType === "application/pdf") {
       await fs.promises.writeFile(filePath, file.buffer);
